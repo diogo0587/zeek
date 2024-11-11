@@ -221,7 +221,19 @@ void expire_timers() {
 }
 
 void dispatch_packet(Packet* pkt, iosource::PktSrc* pkt_src) {
-    double t = run_state::pseudo_realtime ? check_pseudo_time(pkt) : pkt->time;
+    double t = pkt->time;
+
+    if ( pseudo_realtime != 0.0 ) {
+        current_wallclock = util::current_time(true);
+
+        if ( first_wallclock != 0.0 ) {
+            first_wallclock = util::current_time(true);
+            first_timestamp = pkt->time;
+        }
+
+        // Scale pkt time based on pseudo_realtime
+        t = check_pseudo_time(pkt);
+    }
 
     if ( ! zeek_start_network_time ) {
         zeek_start_network_time = t;
@@ -243,9 +255,6 @@ void dispatch_packet(Packet* pkt, iosource::PktSrc* pkt_src) {
 
     processing_start_time = 0.0; // = "we're not processing now"
     current_dispatched = 0;
-
-    if ( pseudo_realtime && ! first_wallclock )
-        first_wallclock = util::current_time(true);
 
     current_iosrc = nullptr;
     current_pktsrc = nullptr;
@@ -402,7 +411,7 @@ double check_pseudo_time(const Packet* pkt) {
     double pseudo_time = pkt->time - first_timestamp;
     double ct = (util::current_time(true) - first_wallclock) * pseudo_realtime;
 
-    current_pseudo = pseudo_time <= ct ? zeek_start_time + pseudo_time : 0;
+    current_pseudo = pseudo_time <= ct ? first_wallclock + pseudo_time : 0;
     return current_pseudo;
 }
 
